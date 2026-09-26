@@ -15,7 +15,7 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Placeholder from '@tiptap/extension-placeholder';
-import { AlertTriangle, Flame } from 'lucide-react';
+import { AlertTriangle, Flame, Sparkles, Clock, FileText } from 'lucide-react';
 
 import { CollabSession } from '../lib/collaboration';
 import { GoogleDocsToolbar } from './GoogleDocsToolbar';
@@ -26,23 +26,27 @@ interface EditorCanvasProps {
   onEditorReady?: (editor: any) => void;
   onActivityLogged?: (type: ActivityActionType, actionText: string, snippet?: string) => void;
   showRuler?: boolean;
+  onOpenAIModal?: () => void;
 }
 
 export const EditorCanvas: React.FC<EditorCanvasProps> = ({ 
   session, 
   onEditorReady, 
   onActivityLogged,
-  showRuler = true 
+  showRuler = true,
+  onOpenAIModal,
 }) => {
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
+  const [readingTime, setReadingTime] = useState('1 min');
   const [collisionUsers, setCollisionUsers] = useState<string[]>([]);
+  const [floatingAIPosition, setFloatingAIPosition] = useState<{ top: number; left: number } | null>(null);
+
   const lastTextRef = useRef<string>('');
   const debounceTimerRef = useRef<any>(null);
 
   const editor = useEditor({
     extensions: [
-      // CRDT History replaces standard prose history
       StarterKit.configure({
         history: false,
       }),
@@ -76,7 +80,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
       TableHeader,
       TableCell,
       Placeholder.configure({
-        placeholder: 'Type @ to insert, or start typing here...',
+        placeholder: 'Welcome to Synora Docs! Type @ or start writing collaborative notes...',
       }),
     ],
     onUpdate: ({ editor }) => {
@@ -84,6 +88,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       setWordCount(words);
       setCharCount(text.length);
+      const minutes = Math.max(1, Math.ceil(words / 200));
+      setReadingTime(`${minutes} min read`);
     },
   }, [session.doc, session.provider]);
 
@@ -93,11 +99,43 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
     }
   }, [editor, onEditorReady]);
 
+  // Floating AI quick-action button on text selection
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleSelection = () => {
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setFloatingAIPosition(null);
+        return;
+      }
+
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try {
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          if (rect.width > 0) {
+            setFloatingAIPosition({
+              top: rect.top - 46,
+              left: rect.left + rect.width / 2,
+            });
+          }
+        } catch {
+          setFloatingAIPosition(null);
+        }
+      }
+    };
+
+    editor.on('selectionUpdate', handleSelection);
+    return () => {
+      editor.off('selectionUpdate', handleSelection);
+    };
+  }, [editor]);
+
   // Track text mutations and log activity
   useEffect(() => {
     if (!editor) return;
 
-    // Initial text snapshot
     lastTextRef.current = editor.getText();
 
     const handleTransaction = ({ transaction }: any) => {
@@ -116,7 +154,6 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
 
       debounceTimerRef.current = setTimeout(() => {
         if (diff > 0) {
-          // Extract short preview of the text that was added
           const sample = newText.trim().split(/\s+/).slice(-6).join(' ');
           onActivityLogged?.('insert', `Added text (+${diff} chars)`, sample ? `"${sample}"` : undefined);
         } else if (diff < 0) {
@@ -146,7 +183,6 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         editorDom.querySelectorAll('.collaboration-cursor__caret')
       ) as HTMLElement[];
 
-      // Clear previous collision state
       editorDom.querySelectorAll('.cursor-collision-active').forEach((el) => {
         el.classList.remove('cursor-collision-active');
       });
@@ -154,7 +190,6 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
 
       const carets: { el: HTMLElement; top: number; left: number; name: string }[] = [];
 
-      // Check local user cursor
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0 && editorDom.contains(sel.anchorNode)) {
         try {
@@ -173,7 +208,6 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         }
       }
 
-      // Check remote carets
       remoteCarets.forEach((c) => {
         const rect = c.getBoundingClientRect();
         const labelEl = c.querySelector('.collaboration-cursor__label');
@@ -196,12 +230,10 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
           const dy = Math.abs(c1.top - c2.top);
           const dx = Math.abs(c1.left - c2.left);
 
-          // If cursors are on the same line (dy < 30) and near each other (dx < 160)
           if (dy < 30 && dx < 160) {
             colliding.add(c1.name);
             colliding.add(c2.name);
 
-            // Add wavy underline to parent paragraph/block
             const p1 = c1.el.closest('p, h1, h2, h3, li, blockquote') || c1.el;
             const p2 = c2.el.closest('p, h1, h2, h3, li, blockquote') || c2.el;
             p1?.classList.add('cursor-collision-active');
@@ -242,14 +274,30 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden bg-transparent">
+    <div className="flex flex-col flex-1 h-full overflow-hidden bg-transparent relative">
+      {/* Floating Selection AI Capsule */}
+      {floatingAIPosition && onOpenAIModal && (
+        <div
+          style={{ top: `${floatingAIPosition.top}px`, left: `${floatingAIPosition.left}px`, transform: 'translateX(-50%)' }}
+          className="fixed z-50 animate-in fade-in zoom-in-95 duration-150"
+        >
+          <button
+            onClick={onOpenAIModal}
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#240916]/95 backdrop-blur-2xl border border-rose-400/50 rounded-full text-white text-xs font-semibold shadow-[0_10px_25px_rgba(225,29,72,0.4)] hover:scale-105 active:scale-95 transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-rose-300 animate-spin" />
+            <span>Ask Synora AI</span>
+          </button>
+        </div>
+      )}
+
       {/* Google Docs Toolbar */}
-      <GoogleDocsToolbar editor={editor} onPrint={handlePrint} />
+      <GoogleDocsToolbar editor={editor} onPrint={handlePrint} onOpenAIModal={onOpenAIModal} />
 
       {/* Google Docs Horizontal Ruler */}
       {showRuler && (
         <div className="h-4 bg-white/5 border-b border-white/10 flex items-center justify-center no-print relative select-none backdrop-blur-sm">
-          <div className="w-[816px] h-full flex items-end justify-between px-18 text-[9px] text-rose-200/50 font-mono">
+          <div className="w-[816px] h-full flex items-end justify-between px-16 text-[9px] text-rose-200/50 font-mono">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={i} className="flex flex-col items-center">
                 <span className="h-1.5 w-px bg-white/20 mb-0.5" />
@@ -264,13 +312,13 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
       <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col items-center relative">
         {/* Real-time Cursor Contention / Hotspot Warning Pill */}
         {collisionUsers.length > 0 && (
-          <div className="sticky top-2 z-40 mb-3 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg flex items-center space-x-2 animate-pulse no-print">
+          <div className="sticky top-2 z-40 mb-3 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg flex items-center space-x-2 animate-pulse no-print border border-amber-300/40">
             <Flame className="w-4 h-4 text-yellow-200" />
             <span>
-              <strong>Active Cursor Workzone:</strong> {collisionUsers.join(' & ')} are working at the same cursor point!
+              <strong>Active Workzone Collision:</strong> {collisionUsers.join(' & ')} are editing at the exact same location!
             </span>
-            <span className="bg-black/20 text-yellow-100 text-[10px] px-2 py-0.5 rounded-full font-bold ml-2">
-              WAVY UNDERLINE ACTIVE
+            <span className="bg-black/25 text-yellow-100 text-[10px] px-2 py-0.5 rounded-full font-bold ml-2">
+              CRDT YATA ACTIVE
             </span>
           </div>
         )}
@@ -280,30 +328,39 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
         </div>
       </div>
 
-      {/* Document Telemetry Footer */}
-      <div className="h-7 bg-black/40 backdrop-blur-md border-t border-white/10 px-6 flex items-center justify-between text-[11px] text-rose-200/70 select-none no-print">
+      {/* Document Telemetry & Statistics Footer */}
+      <div className="h-8 bg-black/50 backdrop-blur-md border-t border-white/10 px-6 flex items-center justify-between text-[11px] text-rose-200/70 select-none no-print">
         <div className="flex items-center space-x-4">
-          <span>Words: <strong className="text-white">{wordCount}</strong></span>
+          <span className="flex items-center space-x-1">
+            <FileText className="w-3 h-3 text-rose-300" />
+            <span>Words: <strong className="text-white">{wordCount}</strong></span>
+          </span>
           <span>Characters: <strong className="text-white">{charCount}</strong></span>
+          <span className="flex items-center space-x-1 text-rose-300/80">
+            <Clock className="w-3 h-3" />
+            <span>{readingTime}</span>
+          </span>
           <span className="text-white/20">|</span>
           <span className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: session.user.color }} />
-            <span>Logged in as: <strong className="text-white">{session.user.name}</strong></span>
+            <span className="w-2 h-2 rounded-full ring-1 ring-white/30" style={{ backgroundColor: session.user.color }} />
+            <span>Collaborating as: <strong className="text-white">{session.user.name}</strong></span>
           </span>
           {collisionUsers.length > 0 && (
             <>
               <span className="text-white/20">|</span>
               <span className="text-amber-400 font-bold flex items-center space-x-1">
                 <AlertTriangle className="w-3 h-3" />
-                <span>Hotspot: {collisionUsers.length} editors here</span>
+                <span>Workzone Contention: {collisionUsers.length} peers</span>
               </span>
             </>
           )}
         </div>
-        <div className="flex items-center space-x-2 text-rose-200/50">
-          <span>CRDT: YATA / Yjs v13</span>
+        <div className="flex items-center space-x-3 text-rose-200/50">
+          <span className="font-mono">Engine: Yjs YATA (CRDT)</span>
           <span>•</span>
-          <span>Sync: WebSocket v2</span>
+          <span className="font-mono">Sync: WebSocket v2</span>
+          <span>•</span>
+          <span className="text-emerald-400 font-semibold">Live Storage</span>
         </div>
       </div>
     </div>

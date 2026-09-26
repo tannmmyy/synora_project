@@ -1,11 +1,10 @@
 services:
   - type: web
-    name: google-docs-crdt
+    name: synora-docs
     runtime: node
-    buildCommand: cd server && npm install && cd ../client && npm install && npm run build
-    startCommand: cd server && npx ts-node src/server.ts
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000

@@ -9,6 +9,8 @@ import { ActivityFeedDrawer } from './components/ActivityFeedDrawer';
 import { GlassSidebar } from './components/GlassSidebar';
 import { ShareModal } from './components/ShareModal';
 import { VersionHistoryModal } from './components/VersionHistoryModal';
+import { SynoraAIModal } from './components/SynoraAIModal';
+import { TableOfContentsDrawer } from './components/TableOfContentsDrawer';
 
 export const App: React.FC = () => {
   // Extract room from query parameter or default
@@ -25,6 +27,8 @@ export const App: React.FC = () => {
   const [isActivityFeedOpen, setIsActivityFeedOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isSimulatedOffline, setIsSimulatedOffline] = useState(false);
   const [editorInstance, setEditorInstance] = useState<any>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -144,7 +148,6 @@ export const App: React.FC = () => {
     provider.on('status', handleStatus);
     provider.awareness.on('change', handleAwareness);
 
-    // Initial awareness state
     handleAwareness();
 
     return () => {
@@ -213,11 +216,13 @@ export const App: React.FC = () => {
 <meta charset="utf-8">
 <title>${docTitle}</title>
 <style>
-body { font-family: Roboto, Arial, sans-serif; max-width: 800px; margin: 40px auto; line-height: 1.6; color: #202124; }
-h1, h2, h3 { color: #000; }
-pre { background: #f1f3f4; padding: 12px; border-radius: 4px; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #dadce0; padding: 8px; }
+body { font-family: 'Inter', Arial, sans-serif; max-width: 800px; margin: 40px auto; line-height: 1.6; color: #1e293b; background: #fff; padding: 20px; }
+h1, h2, h3 { color: #0f172a; }
+pre { background: #0f172a; color: #f8fafc; padding: 12px; border-radius: 8px; font-family: monospace; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #e2e8f0; padding: 8px 12px; }
+th { background: #f8fafc; font-weight: bold; }
+blockquote { border-left: 3px solid #f43f5e; padding-left: 12px; color: #475569; font-style: italic; background: #fff1f2; }
 </style>
 </head>
 <body>
@@ -258,20 +263,33 @@ ${html}
     });
   };
 
+  const activeSidebarTab = isSplitScreen 
+    ? 'split' 
+    : isActivityFeedOpen 
+    ? 'activity' 
+    : isChaosPanelOpen 
+    ? 'chaos' 
+    : isOutlineOpen 
+    ? 'outline' 
+    : 'editor';
+
   return (
     <div className="flex h-screen w-screen overflow-hidden font-sans select-none">
       {/* ------------------------------------------------------------- */}
-      {/* Floating Glassmorphic Sidebar & Dock (Reference UI)           */}
+      {/* Floating Glassmorphic Sidebar & Dock                          */}
       {/* ------------------------------------------------------------- */}
       <GlassSidebar
-        activeTab={
-          isSplitScreen ? 'split' : isActivityFeedOpen ? 'activity' : isChaosPanelOpen ? 'chaos' : 'editor'
-        }
+        activeTab={activeSidebarTab}
         onSelectTab={(tab) => {
           if (tab === 'editor') {
             setIsSplitScreen(false);
             setIsActivityFeedOpen(false);
             setIsChaosPanelOpen(false);
+            setIsOutlineOpen(false);
+          } else if (tab === 'ai') {
+            setIsAIModalOpen(true);
+          } else if (tab === 'outline') {
+            setIsOutlineOpen(!isOutlineOpen);
           } else if (tab === 'activity') {
             setIsActivityFeedOpen(true);
             setIsChaosPanelOpen(false);
@@ -288,7 +306,6 @@ ${html}
         activeUsers={activeUsers}
         activityCount={activities.length}
         onOpenProfileModal={() => {
-          // Trigger profile edit
           const newName = prompt('Enter your collaborator name:', session.user.name);
           if (newName && newName.trim()) {
             handleUpdateUser(newName.trim(), session.user.color);
@@ -302,7 +319,7 @@ ${html}
       {/* Main Workspace Area                                           */}
       {/* ------------------------------------------------------------- */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        {/* Authentic Google Docs Header */}
+        {/* Authentic Synora Google Docs Header */}
         <GoogleDocsHeader
           title={docTitle}
           onTitleChange={handleTitleChange}
@@ -319,6 +336,9 @@ ${html}
           isChaosPanelOpen={isChaosPanelOpen}
           onOpenShareModal={() => setIsShareModalOpen(true)}
           onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
+          onOpenAIModal={() => setIsAIModalOpen(true)}
+          onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+          isOutlineOpen={isOutlineOpen}
           onExportMarkdown={handleExportMarkdown}
           onExportHtml={handleExportHtml}
           onPrint={() => window.print()}
@@ -334,8 +354,16 @@ ${html}
               session={session}
               onEditorReady={(editor) => setEditorInstance(editor)}
               onActivityLogged={logActivity}
+              onOpenAIModal={() => setIsAIModalOpen(true)}
             />
           )}
+
+          {/* Table of Contents Drawer */}
+          <TableOfContentsDrawer
+            isOpen={isOutlineOpen && !isSplitScreen}
+            onClose={() => setIsOutlineOpen(false)}
+            editor={editorInstance}
+          />
 
           {/* Real-Time Activity Feed Drawer */}
           <ActivityFeedDrawer
@@ -357,7 +385,16 @@ ${html}
         </main>
       </div>
 
-      {/* Modals */}
+      {/* Synora AI Assistant Modal */}
+      <SynoraAIModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        editor={editorInstance}
+        onActivityLogged={logActivity}
+        userName={session.user.name}
+      />
+
+      {/* Share Modal */}
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
@@ -365,6 +402,7 @@ ${html}
         onJoinRoom={handleJoinRoom}
       />
 
+      {/* Version History Modal */}
       <VersionHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}

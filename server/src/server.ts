@@ -45,7 +45,12 @@ utils.setPersistence({
 
 // REST API
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), version: '1.0.0' });
+  res.json({ 
+    status: 'ok', 
+    service: 'synora-docs-crdt-server',
+    time: new Date().toISOString(), 
+    version: '2.0.0' 
+  });
 });
 
 // Return network info for multi-computer connections
@@ -150,7 +155,6 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 wss.on('connection', (conn: WebSocket, req: http.IncomingMessage) => {
-  // Extract docName from url path e.g. /my-doc-room or /ws/my-doc-room or default
   let url = req.url || '/';
   url = url.split('?')[0];
   if (url.startsWith('/ws/')) {
@@ -164,7 +168,7 @@ wss.on('connection', (conn: WebSocket, req: http.IncomingMessage) => {
 server.listen(PORT, '0.0.0.0', () => {
   const localIp = getLocalIPAddress();
   console.log(`===================================================`);
-  console.log(`🚀 Real-Time Collaborative Google Docs Server (Single-Port Unified)`);
+  console.log(`✨ Synora Docs - Real-Time Collaborative CRDT Suite`);
   console.log(`💻 Local URL:      http://localhost:${PORT}`);
   console.log(`🌐 Network URL:    http://${localIp}:${PORT}`);
   console.log(`📡 WebSocket:      ws://${localIp}:${PORT}`);

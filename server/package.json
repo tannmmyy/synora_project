@@ -1,13 +1,14 @@
 {
-  "name": "google-docs-crdt-server",
-  "version": "1.0.0",
+  "name": "synora-docs-server",
+  "version": "2.0.0",
   "description": "Real-time collaborative CRDT document server with WebSocket and disk persistence",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test:crdt": "ts-node src/test-crdt.ts"
+    "test:crdt": "ts-node src/test-crdt.ts",
+    "test:collab": "ts-node src/test-live-collab.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
