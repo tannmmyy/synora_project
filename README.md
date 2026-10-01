@@ -115,23 +115,6 @@ npm --prefix client run dev
 ```
 
 ---
-
-## ☁️ Deploying to Render in 1 Click
-
-1. Push this repository to your GitHub account (`synora-docs` or `google-docs-crdt`).
-2. Log into [Render.com](https://render.com).
-3. Click **New +** → **Web Service**.
-4. Connect your GitHub repository.
-5. Configure the service settings:
-   - **Environment**: `Node`
-   - **Build Command**: `npm run build`
-   - **Start Command**: `npm start`
-   - **Plan**: `Free`
-6. Click **Deploy Web Service**!
-   - Render will build the client and server and serve both the WebSocket CRDT engine and the frontend web app on a single unified HTTPS/WSS URL (e.g. `https://synora-docs.onrender.com`).
-
----
-
 ## 🧪 Testing & Verification
 
 ### 1. Automated CRDT Convergence Test
